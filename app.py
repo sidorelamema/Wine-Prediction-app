@@ -1,7 +1,3 @@
-#import findspark
-#findspark.init()
-#findspark.find()
-
 import sys
 import numpy as np
 import pandas as pd
@@ -20,36 +16,39 @@ from pyspark.mllib.classification import LogisticRegressionWithLBFGS
 from pyspark.mllib.classification import LogisticRegressionModel
 
 
-def predict_wine_quality(model, data):
-    predictions = model.predict(data)
-    return predictions
-
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python app.py <csv_file>")
         sys.exit(1)
 
     csv_file = sys.argv[1]
-    model_path = "s3://cs643-njit-bucket/trained_model"
+    model_path = "s3://cs643-njit-bucket/trained_model/"
 
     # Initialize SparkSession
-    spark = pyspark.SparkConf().setAppName('WinePrediction').setMaster('local')
+    spark = pyspark.SparkConf().setAppName('WinePrediction')
     spark_context = pyspark.SparkContext(conf=spark)
-    spark_session = SparkSession(spark_context)
-
+    spark_session = SparkSession.builder.appName("WinePrediction").getOrCreate()
+    
     # Load trained model
     model = LogisticRegressionModel.load(spark_context, model_path)
+    print("Model loaded")
 
     # Load CSV data
-    data = spark.read.csv(csv_file, header=True, sep=";")
+    data = spark_session.read.csv(csv_file, header=True, sep=";")
+    data.printSchema()
+    data.show()
 
     #data preprocessing
+
+    #Converting the data to float to ensure compatibility with the algorithms
+    for col_name in data.columns[1:-1]+['""""quality"""""']:
+         data = data.withColumn(col_name, col(col_name).cast('float'))
 
     # Handling Missing Values: Impute missing values with mean
     imputer = Imputer(inputCols=data.columns[1:], outputCols=["{}_imputed".format(c) for c in data.columns[1:]])
     imputer_model = imputer.fit(data)
     data = imputer_model.transform(data)
-
+    
 
     #rename the quality column for easier access 
     data = data.withColumnRenamed('""""quality"""""', "label")
@@ -72,10 +71,7 @@ if __name__ == "__main__":
     dataset = to_labeled_point(spark_context, features, label)
 
     # Make predictions
-    predictions = predict_wine_quality(model, data)
-
-    # Output predictions
-    predictions.show()
+    predictions = model.predict(dataset.map(lambda x: x.features))
 
     # Getting a RDD of label and predictions
     rdd_df = dataset.map(lambda lp: lp.label).zip(predictions)
