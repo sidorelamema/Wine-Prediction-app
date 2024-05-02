@@ -22,7 +22,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     csv_file = sys.argv[1]
-    model_path = "s3://cs643-njit-bucket/trained_model/"
+    model_path = "/data/trained_model/"
 
     # Initialize SparkSession
     spark = pyspark.SparkConf().setAppName('WinePrediction')
